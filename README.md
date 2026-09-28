@@ -1,50 +1,39 @@
-# Tatkaal Portal (working prototype)
+# Tatkaal Portal
 
-Two separate pages, plain HTML/CSS/JS with no build step:
+Prototype for the Tatkaal Passport Renewal workflow for CGI Vancouver.
 
-- `index.html` — Applicant portal: eligibility → adult/minor form → document upload → application number → status tracking.
-- `admin.html` — Consular officer portal: demo login → dashboard → search/filter → review documents → approve/reject → remarks/history.
+## Current version
 
-## Demo officer login
+The applicant and officer interfaces are still available as a working prototype. The browser `localStorage` workflow has **not** been removed yet.
 
-Username: `officer`
-Password: `consulate123`
+This version adds the first PHP/MySQL backend pieces so we can migrate safely in stages.
 
-This login is for prototype testing only. It must be replaced with server-side authentication before real use.
+### Backend files
 
-## Current storage limitation
+- `api/config/database.php` - server-side MySQL connection settings
+- `api/health/check.php` - checks the PHP-to-MySQL connection
+- `api/applications/create.php` - first application creation API
 
-Applications and document previews are stored in the browser's `localStorage`. This means the applicant and officer must use the same browser/device/site to see the same test data. It is not suitable for real applicants.
+### Important
 
-The next production step is to replace `load()` / `save()` in `js/shared.js` with a PHP + MySQL backend and move authentication and document storage to the server.
+Before deploying the PHP backend, copy `api/config/database.php` to the Hostinger server and replace `YOUR_DATABASE_PASSWORD` with the database password. Do not commit the real password to GitHub.
 
-## Current prototype flow
+The real `database.php` is listed in `.gitignore`.
 
-1. Applicant completes eligibility checks.
-2. Applicant selects adult/minor.
-3. Applicant enters application information and uploads JPEG documents.
-4. A unique reference such as `TAT2026000001` is generated.
-5. The application appears in the officer dashboard.
-6. Officer can search by application number, passport number, name or email.
-7. Officer opens the application and views document previews.
-8. Officer approves or rejects the application and can add remarks.
-9. The application keeps a basic history of submission and decision.
-10. Applicant can track status using the application number and passport number.
+## API test
 
-## Hostinger static deployment
+After uploading to Hostinger and setting the password, open:
 
-Upload `index.html`, `admin.html`, `css/`, and `js/` into the site's public directory. No `package.json` or build command is required for this prototype.
+`/api/health/check.php`
 
-## Before real/internal use
+A successful response should be JSON similar to:
 
-Do not enter real applicant information into this static prototype. Before real testing with personal information, implement:
+```json
+{"success":true,"message":"Database connection is working."}
+```
 
-- PHP + MySQL server-side application storage
-- Secure officer authentication and sessions
-- Server-side authorization
-- Secure document storage and access control
-- Server-side validation and upload restrictions
-- Audit logging
-- Email/SMS integration
-- Duplicate passport-number checks on the server
-- Backups and appropriate security/privacy controls
+The application creation endpoint accepts a JSON `POST` request. The frontend will be connected to this endpoint in the next step, after the database connection has been tested.
+
+## Current prototype limitation
+
+The browser application still uses `localStorage` for the applicant/admin demo. Do not use real applicant or passport information until the backend migration, authentication, document storage, access controls, and security testing are completed.

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tatkaal API Test</title>
+<style>body{font-family:Arial,sans-serif;max-width:760px;margin:40px auto;padding:0 16px}button{padding:10px 16px}pre{background:#f4f4f4;padding:16px;white-space:pre-wrap}</style>
+</head>
+<body>
+<h2>Tatkaal API Test</h2>
+<p>This test creates a dummy application. Do not enter real applicant information.</p>
+<button id="test">Create dummy application</button>
+<pre id="result">Waiting...</pre>
+<script>
+document.getElementById('test').onclick = async () => {
+  const result = document.getElementById('result');
+  result.textContent = 'Sending...';
+  try {
+    const response = await fetch('applications/create.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        applicant_type: 'adult',
+        full_name: 'Test Applicant',
+        passport_number: 'TEST' + Date.now().toString().slice(-8),
+        phone: '0000000000',
+        email: 'test@example.com',
+        tatkaal_reason: 'Database connection test',
+        indian_passport: true,
+        cgi_jurisdiction: true,
+        passport_valid: true,
+        passport_under_12_months: true,
+        valid_canadian_status: true,
+        changing_personal_details: false
+      })
+    });
+    const data = await response.json();
+    result.textContent = JSON.stringify({http_status: response.status, ...data}, null, 2);
+  } catch (error) {
+    result.textContent = error.toString();
+  }
+};
+</script>
+</body>
+</html>

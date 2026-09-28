@@ -1,0 +1,15 @@
+# Local/editor files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# PHP/server configuration containing secrets
+api/config/database.php
+
+# Uploaded applicant documents
+uploads/
+
+# Environment/secrets
+.env
+.env.*
