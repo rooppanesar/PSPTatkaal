@@ -1,39 +1,26 @@
 # Tatkaal Portal
 
-Prototype for the Tatkaal Passport Renewal workflow for CGI Vancouver.
+Prototype for the Tatkaal passport renewal approval workflow.
 
-## Current version
+## Current stage
 
-The applicant and officer interfaces are still available as a working prototype. The browser `localStorage` workflow has **not** been removed yet.
+The applicant portal now submits application data and JPEG documents to the PHP API and stores them in the Hostinger MariaDB database. Applicant status lookup also reads from the database.
 
-This version adds the first PHP/MySQL backend pieces so we can migrate safely in stages.
+The officer portal is still using the prototype browser storage and demo login. It will be moved to server-side authentication and database APIs in the next stage.
 
-### Backend files
+## Server files
 
-- `api/config/database.php` - server-side MySQL connection settings
-- `api/health/check.php` - checks the PHP-to-MySQL connection
-- `api/applications/create.php` - first application creation API
+- `api/config/database.php` is created only on the server and must not be committed to GitHub.
+- Use `api/config/database.example.php` as the template.
+- Uploaded documents are stored under `api/storage/uploads/` and direct web access is blocked.
 
-### Important
+## Applicant API
 
-Before deploying the PHP backend, copy `api/config/database.php` to the Hostinger server and replace `YOUR_DATABASE_PASSWORD` with the database password. Do not commit the real password to GitHub.
+- `POST /api/applications/create.php`
+- `GET /api/status/get.php?application_number=...&passport_number=...`
 
-The real `database.php` is listed in `.gitignore`.
+The application API validates required fields, accepts JPEG documents up to 5 MB each, checks the 30-day passport-number duplicate rule, stores application history, and creates a reference number based on the database record ID.
 
-## API test
+## Testing
 
-After uploading to Hostinger and setting the password, open:
-
-`/api/health/check.php`
-
-A successful response should be JSON similar to:
-
-```json
-{"success":true,"message":"Database connection is working."}
-```
-
-The application creation endpoint accepts a JSON `POST` request. The frontend will be connected to this endpoint in the next step, after the database connection has been tested.
-
-## Current prototype limitation
-
-The browser application still uses `localStorage` for the applicant/admin demo. Do not use real applicant or passport information until the backend migration, authentication, document storage, access controls, and security testing are completed.
+Do not use real applicant information while this is still a prototype.

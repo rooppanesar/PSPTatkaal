@@ -103,7 +103,7 @@ function renderForm(){
   document.getElementById("back").onclick = () => go("elig2", { answers:state.answers });
   document.getElementById("submit").onclick = async () => {
     const name = document.getElementById("f_name").value.trim();
-    const dob = type === "minor" ? document.getElementById("f_dob").value : null;
+    const dob = type === "minor" ? document.getElementById("f_dob").value : "";
     const passport = document.getElementById("f_passport").value.trim().toUpperCase();
     const phone = document.getElementById("f_phone").value.trim();
     const email = document.getElementById("f_email").value.trim();
@@ -112,32 +112,88 @@ function renderForm(){
     const docStatus = document.getElementById("f_doc_status").files[0];
     const docParent = type === "minor" ? document.getElementById("f_doc_parent").files[0] : null;
     const errEl = document.getElementById("formErr");
+
     if (!name || (type === "minor" && !dob) || !passport || !phone || !email || !reason || !docPassport || !docStatus || (type === "minor" && !docParent)) {
-      errEl.textContent = "Please complete every field and upload the required documents."; return;
+      errEl.textContent = "Please complete every field and upload the required documents.";
+      return;
     }
-    if (![docPassport,docStatus,docParent].filter(Boolean).every(f => f.type === "image/jpeg")) {
-      errEl.textContent = "Please upload JPEG images only."; return;
+
+    const files = [docPassport, docStatus, docParent].filter(Boolean);
+    if (!files.every(f => f.type === "image/jpeg")) {
+      errEl.textContent = "Please upload JPEG images only.";
+      return;
     }
-    const submitBtn = document.getElementById("submit"); submitBtn.disabled = true; submitBtn.textContent = "Processing documents…";
+    if (files.some(f => f.size > 5 * 1024 * 1024)) {
+      errEl.textContent = "Each document must be no larger than 5 MB.";
+      return;
+    }
+
+    const submitBtn = document.getElementById("submit");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submitting application…";
+    errEl.textContent = "";
+
     try {
-      const [passportImg,statusImg,parentImg] = await Promise.all([toPreviewImage(docPassport),toPreviewImage(docStatus),docParent ? toPreviewImage(docParent) : Promise.resolve(null)]);
-      const list = load(); const now = Date.now(); const thirtyDays = 30*24*60*60*1000;
-      const prior = list.filter(x => x.passport === passport).sort((a,b) => b.submittedAt-a.submittedAt)[0];
-      if (prior && (now - prior.submittedAt) < thirtyDays) {
-        const allowed = prior.status === "rejected" && prior.rejectionReason === RESUBMIT_OK_REASON;
-        if (!allowed) return go("duplicate", { prior });
+      const formData = new FormData();
+      formData.append("applicant_type", type);
+      formData.append("full_name", name);
+      formData.append("date_of_birth", dob);
+      formData.append("passport_number", passport);
+      formData.append("phone", phone);
+      formData.append("email", email);
+      formData.append("tatkaal_reason", reason);
+      formData.append("indian_passport", state.answers?.indian || "");
+      formData.append("cgi_jurisdiction", state.answers?.jurisdiction || "");
+      formData.append("passport_valid", state.answers?.notExpired || "");
+      formData.append("passport_under_12_months", state.answers?.under12 || "");
+      formData.append("valid_canadian_status", state.answers?.status || "");
+      formData.append("changing_personal_details", state.answers?.changes || "");
+      formData.append("passport", docPassport);
+      formData.append("status_proof", docStatus);
+      if (docParent) formData.append("parent_status_proof", docParent);
+
+      const response = await fetch("api/applications/create.php", {
+        method: "POST",
+        body: formData
+      });
+      const data = await response.json();
+
+      if (response.status === 409 && data.code === "DUPLICATE_APPLICATION") {
+        return go("duplicate", {
+          prior: {
+            passport,
+            applicationNumber: data.application_number,
+            status: "pending"
+          }
+        });
       }
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "The application could not be submitted.");
+      }
+
       const record = {
-        id:uid(), applicationNumber:nextApplicationNumber(), passport, name, dob, phone, email, reason,
-        applicantType:type, eligibility:{...state.answers},
-        docs:{passport:{name:docPassport.name,img:passportImg},status:{name:docStatus.name,img:statusImg},parent:docParent ? {name:docParent.name,img:parentImg} : null},
-        status:"pending", submittedAt:now, rejectionReason:null, remarks:"", decidedAt:null,
-        history:[{action:"Application submitted",at:now,status:"pending"}]
+        id: data.application.id,
+        applicationNumber: data.application.application_number,
+        passport,
+        name,
+        dob: dob || null,
+        phone,
+        email,
+        reason,
+        applicantType: type,
+        status: data.application.status,
+        submittedAt: data.application.submitted_at,
+        rejectionReason: null,
+        remarks: "",
+        decidedAt: null
       };
-      list.push(record); save(list); go("success", { record });
-    } catch(e) {
-      errEl.textContent = "Could not save the application. Please try again with JPEG images.";
-      submitBtn.disabled = false; submitBtn.textContent = "Submit application";
+
+      go("success", { record });
+    } catch (e) {
+      errEl.textContent = e.message || "Could not submit the application. Please try again.";
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Submit application";
     }
   };
 }
@@ -186,12 +242,22 @@ function renderTrack(){
     </div>` : ""}
   </div></div>`;
   document.getElementById("home").onclick=()=>go("elig1",{answers:{}});
-  document.getElementById("find").onclick=()=>{
+  document.getElementById("find").onclick=async()=>{
     const no=document.getElementById("trackNo").value.trim().toUpperCase();
     const passport=document.getElementById("trackPassport").value.trim().toUpperCase();
-    const r=load().find(x=>x.applicationNumber===no && x.passport===passport);
-    if(!r) { document.getElementById("trackErr").textContent="No application was found with those details."; return; }
-    go("track",{lookup:no,trackResult:r});
+    const err=document.getElementById("trackErr");
+    if(!no || !passport){ err.textContent="Enter both the application number and passport number."; return; }
+    const button=document.getElementById("find");
+    button.disabled=true; button.textContent="Checking…"; err.textContent="";
+    try {
+      const response=await fetch(`api/status/get.php?application_number=${encodeURIComponent(no)}&passport_number=${encodeURIComponent(passport)}`);
+      const data=await response.json();
+      if(!response.ok || !data.success) throw new Error(data.message || "No application was found with those details.");
+      go("track",{lookup:no,trackResult:data.application});
+    } catch(e) {
+      err.textContent=e.message || "Unable to check the application status right now.";
+      button.disabled=false; button.textContent="Check status";
+    }
   };
 }
 

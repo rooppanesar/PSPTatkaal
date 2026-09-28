@@ -13,3 +13,6 @@ uploads/
 # Environment/secrets
 .env
 .env.*
+
+# Server-side uploaded files
+api/storage/uploads/
